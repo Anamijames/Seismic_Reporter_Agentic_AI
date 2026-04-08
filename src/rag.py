@@ -141,17 +141,25 @@ def generate_with_groq(model: str, prompt: str, max_tokens: int = 128) -> str:
     return (message.get("content") or "").strip()
 
 def query_rag(question: str, k=3, ollama_model: str = None, max_tokens: int = 128):
-    idx, meta = load_index()
     start = time.time()
-    q_emb = np.array(embed_texts([question])).astype("float32")
-    _, I = idx.search(q_emb, k)
-    hits = [meta[i] for i in I[0] if i < len(meta)]
-    # Build prompt with retrieved contexts
-    context = "\n---\n".join([h["text"] for h in hits])
-    prompt = (
-        "You are an assistant that answers questions using the provided context. "
-        f"Context:\n{context}\nQuestion: {question}\nAnswer:"
-    )
+    hits = []
+    context = ""
+    prompt_prefix = "You are an assistant that answers questions using the provided context. "
+
+    try:
+        idx, meta = load_index()
+        q_emb = np.array(embed_texts([question])).astype("float32")
+        _, I = idx.search(q_emb, k)
+        hits = [meta[i] for i in I[0] if i < len(meta)]
+        context = "\n---\n".join([h["text"] for h in hits])
+        prompt = prompt_prefix + f"Context:\n{context}\nQuestion: {question}\nAnswer:"
+    except FileNotFoundError:
+        prompt = (
+            "You are an assistant that answers questions about earthquakes. "
+            "No retrieval index is currently available, so answer directly and be concise. "
+            f"Question: {question}\nAnswer:"
+        )
+
     model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
     answer = generate_with_groq(model, prompt, max_tokens=max_tokens)
 
