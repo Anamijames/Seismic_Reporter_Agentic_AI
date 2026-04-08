@@ -10,6 +10,17 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 load_dotenv()
+
+# Streamlit Cloud does not automatically provide a .env file.
+# If secrets are configured in the app settings, mirror them to env vars.
+try:
+    if not os.getenv("GROQ_API_KEY"):
+        secret_key = st.secrets.get("GROQ_API_KEY")
+        if secret_key:
+            os.environ["GROQ_API_KEY"] = str(secret_key).strip()
+except Exception:
+    pass
+
 from src.rag import query_rag
 
 st.set_page_config(page_title="Seismic Reporter", layout="wide", initial_sidebar_state="collapsed")
