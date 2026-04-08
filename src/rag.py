@@ -14,6 +14,7 @@ import requests
 # Paths and config
 FAISS_PATH = os.getenv("FAISS_INDEX_PATH", "./data/faiss_index")
 os.makedirs(os.path.dirname(FAISS_PATH), exist_ok=True)
+DOCS_PATH = os.getenv("DOCS_PATH", "./data/usgs_docs.jsonl")
 
 # Embedding model (local)
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "all-MiniLM-L6-v2")
@@ -78,7 +79,19 @@ def build_index(docs: List[dict]):
 
 def load_index():
     if not os.path.exists(FAISS_PATH):
-        raise FileNotFoundError("FAISS index not found; run build_index first")
+        if os.path.exists(DOCS_PATH):
+            docs = []
+            with open(DOCS_PATH, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        docs.append(json.loads(line))
+            if docs:
+                build_index(docs)
+        if not os.path.exists(FAISS_PATH):
+            raise FileNotFoundError(
+                "FAISS index not found; provide data/usgs_docs.jsonl or run build_index first"
+            )
     index = faiss.read_index(FAISS_PATH)
     meta = json.load(open(FAISS_PATH + ".meta.json", "r", encoding="utf-8"))
     return index, meta
