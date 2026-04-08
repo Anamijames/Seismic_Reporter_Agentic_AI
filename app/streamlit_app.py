@@ -36,6 +36,9 @@ if "chat_history" not in st.session_state:
 if "show_about" not in st.session_state:
     st.session_state.show_about = False
 
+if "runtime_groq_key" not in st.session_state:
+    st.session_state.runtime_groq_key = ""
+
 st.markdown(
     """
     <style>
@@ -207,6 +210,15 @@ if st.button("Clear Conversation"):
     st.rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
+if not os.getenv("GROQ_API_KEY"):
+    st.warning("Groq API key not found in environment/secrets. Enter it below to continue.")
+    entered_key = st.text_input("Groq API Key", type="password", key="runtime_groq_key_input")
+    if entered_key and entered_key.strip():
+        clean_key = entered_key.strip()
+        os.environ["GROQ_API_KEY"] = clean_key
+        st.session_state.runtime_groq_key = clean_key
+        st.success("Groq key loaded for this session.")
+
 st.markdown(
     f"<p class='small-note'>Conversation turns: {len(st.session_state.chat_history)}</p>",
     unsafe_allow_html=True,
@@ -225,6 +237,9 @@ for turn in st.session_state.chat_history:
 
 q = st.chat_input("Ask about recent seismic activity...")
 if q and q.strip():
+    if not os.getenv("GROQ_API_KEY"):
+        st.error("Set GROQ_API_KEY in Streamlit secrets or enter it in the field above.")
+        st.stop()
     with st.chat_message("user"):
         st.write(q)
     with st.spinner("Retrieving and generating answer..."):

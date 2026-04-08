@@ -111,7 +111,7 @@ def generate_with_groq(model: str, prompt: str, max_tokens: int = 128) -> str:
     """Call Groq Chat Completions API and return text output."""
     api_key = (os.getenv("GROQ_API_KEY") or "").strip().strip('"').strip("'")
     if not api_key:
-        raise RuntimeError("GROQ_API_KEY is missing or empty in .env")
+        raise RuntimeError("GROQ_API_KEY is missing or empty (set in .env or Streamlit secrets)")
 
     endpoint = os.getenv("GROQ_API_BASE", "https://api.groq.com/openai/v1") + "/chat/completions"
     timeout = int(os.getenv("GROQ_TIMEOUT", "60"))
