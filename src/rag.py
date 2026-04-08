@@ -9,7 +9,6 @@ load_dotenv()
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
-import mlflow
 import requests
 
 # Paths and config
@@ -23,8 +22,27 @@ _embed_model = SentenceTransformer(EMBED_MODEL_NAME)
 # MLflow setup
 MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI")
 MLFLOW_ENABLED = os.getenv("ENABLE_MLFLOW", "false").strip().lower() in ("1", "true", "yes", "on")
-if MLFLOW_ENABLED and MLFLOW_URI:
-    mlflow.set_tracking_uri(MLFLOW_URI)
+
+
+def _get_mlflow():
+    """Import mlflow only when it is explicitly enabled.
+
+    Streamlit Cloud can have dependency combinations where importing mlflow at
+    module load time fails before the app even starts. Keeping this lazy avoids
+    breaking the whole app when metrics tracking is disabled.
+    """
+    if not MLFLOW_ENABLED:
+        return None
+    try:
+        import mlflow
+    except Exception:
+        return None
+    if MLFLOW_URI:
+        try:
+            mlflow.set_tracking_uri(MLFLOW_URI)
+        except Exception:
+            return None
+    return mlflow
 
 def embed_texts(texts: List[str]) -> List[List[float]]:
     """Compute embeddings locally using sentence-transformers."""
@@ -46,7 +64,8 @@ def build_index(docs: List[dict]):
         json.dump(docs, f)
     elapsed = time.time() - start
     # Log experiment only when explicitly enabled to avoid network delays.
-    if MLFLOW_ENABLED:
+    mlflow = _get_mlflow()
+    if mlflow is not None:
         try:
             mlflow.set_experiment("rag_indexing")
             with mlflow.start_run(run_name="build_index"):
@@ -114,7 +133,8 @@ def query_rag(question: str, k=3, ollama_model: str = None, max_tokens: int = 12
     answer = generate_with_groq(model, prompt, max_tokens=max_tokens)
 
     qtime = time.time() - start
-    if MLFLOW_ENABLED:
+    mlflow = _get_mlflow()
+    if mlflow is not None:
         try:
             mlflow.set_experiment("rag_queries")
             with mlflow.start_run(run_name="query"):
