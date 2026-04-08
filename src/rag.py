@@ -79,15 +79,25 @@ def build_index(docs: List[dict]):
 
 def load_index():
     if not os.path.exists(FAISS_PATH):
+        docs = []
         if os.path.exists(DOCS_PATH):
-            docs = []
             with open(DOCS_PATH, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line:
                         docs.append(json.loads(line))
-            if docs:
-                build_index(docs)
+        if not docs:
+            try:
+                from src.ingest import fetch_usgs_past_days, to_documents, save_jsonl
+
+                geojson = fetch_usgs_past_days(1)
+                docs = to_documents(geojson)
+                if docs:
+                    save_jsonl(docs)
+            except Exception:
+                docs = []
+        if docs:
+            build_index(docs)
         if not os.path.exists(FAISS_PATH):
             raise FileNotFoundError(
                 "FAISS index not found; provide data/usgs_docs.jsonl or run build_index first"
