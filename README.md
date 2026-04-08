@@ -140,7 +140,7 @@ If you get an error mentioning `//./pipe/dockerDesktopLinuxEngine`, Docker Deskt
 | `ENABLE_MLFLOW` | No | `false` | Enables MLflow logging when true |
 | `MLFLOW_TRACKING_URI` | No | `http://localhost:5000` | Tracking server URI |
 | `AUTHOR_NAME` | No | `Anami James A` | Footer author name in UI |
-| `GITHUB_URL` | No | `https://github.com/` | Footer GitHub link in UI |
+
 
 ## Common issues
 
