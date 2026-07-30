@@ -2,24 +2,27 @@
 import os
 import json
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def fetch_usgs_past_days(days=7):
     # USGS feed: past N days (earthquake catalog query)
-    endtime = datetime.utcnow()
+    endtime = datetime.now(timezone.utc)
     starttime = endtime - timedelta(days=days)
     url = (
         "https://earthquake.usgs.gov/fdsnws/event/1/query"
         "?format=geojson"
-        f"&starttime={starttime.isoformat()}"
-        f"&endtime={endtime.isoformat()}"
+        f"&starttime={starttime.isoformat().replace('+00:00', 'Z')}"
+        f"&endtime={endtime.isoformat().replace('+00:00', 'Z')}"
     )
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+    try:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Failed to fetch USGS earthquake feed: {exc}") from exc
 
 def to_documents(geojson):
     docs = []

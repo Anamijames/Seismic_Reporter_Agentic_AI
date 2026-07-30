@@ -13,21 +13,23 @@ load_dotenv()
 
 # Streamlit Cloud does not automatically provide a .env file.
 # If secrets are configured in the app settings, mirror them to env vars.
-try:
-    if not os.getenv("GROQ_API_KEY"):
-        secret_key = st.secrets.get("GROQ_API_KEY")
+if not os.getenv("GROQ_API_KEY"):
+    secrets = getattr(st, "secrets", None)
+    if secrets is not None and "GROQ_API_KEY" in secrets:
+        secret_key = secrets["GROQ_API_KEY"]
         if secret_key:
             os.environ["GROQ_API_KEY"] = str(secret_key).strip()
-except Exception:
-    pass
 
-from src.rag import query_rag
+from src.rag import ensure_index_fresh, index_age_minutes, query_rag, refresh_index, start_index_refresh_scheduler
 
 st.set_page_config(page_title="Seismic Reporter", layout="wide", initial_sidebar_state="collapsed")
 
 K_DEFAULT = int(os.getenv("RAG_RETRIEVAL_K", "3"))
 MAX_TOKENS_DEFAULT = int(os.getenv("RAG_MAX_TOKENS", "180"))
 AUTHOR_NAME = os.getenv("AUTHOR_NAME", "Anami James A")
+INDEX_REFRESH_MINUTES = int(os.getenv("INDEX_REFRESH_MINUTES", "180"))
+
+start_index_refresh_scheduler(interval_minutes=INDEX_REFRESH_MINUTES)
 
 
 if "chat_history" not in st.session_state:
@@ -201,11 +203,31 @@ if st.session_state.show_about:
         unsafe_allow_html=True,
     )
 
-st.markdown('<div class="top-actions">', unsafe_allow_html=True)
-if st.button("Clear Conversation"):
-    st.session_state.chat_history = []
-    st.rerun()
-st.markdown('</div>', unsafe_allow_html=True)
+action_col_1, action_col_2 = st.columns([0.5, 0.5])
+with action_col_1:
+    if st.button("Rebuild Index", use_container_width=True):
+        with st.spinner("Refreshing USGS data and rebuilding the index..."):
+            rebuild_result = refresh_index()
+        st.session_state.last_index_refresh = rebuild_result
+        st.success(f"Rebuilt index with {rebuild_result['doc_count']} documents.")
+        st.rerun()
+with action_col_2:
+    if st.button("Clear Conversation", use_container_width=True):
+        st.session_state.chat_history = []
+        st.rerun()
+
+try:
+    freshness = ensure_index_fresh(max_age_minutes=INDEX_REFRESH_MINUTES)
+    if freshness.get("refreshed"):
+        st.info(f"Index refreshed automatically ({freshness.get('reason', 'scheduled update')}).")
+    elif freshness.get("age_minutes") is not None:
+        st.caption(f"Index age: {freshness['age_minutes']:.1f} minutes")
+except Exception as exc:
+    st.warning(f"Automatic index refresh skipped: {exc}")
+
+if "last_index_refresh" in st.session_state:
+    last_refresh = st.session_state.last_index_refresh
+    st.caption(f"Last manual rebuild: {last_refresh['doc_count']} documents")
 
 if not os.getenv("GROQ_API_KEY"):
     st.error("GROQ_API_KEY is not configured. Set it in Streamlit Cloud secrets or environment variables.")
@@ -234,28 +256,26 @@ if q and q.strip():
     with st.chat_message("user"):
         st.write(q)
     with st.spinner("Retrieving and generating answer..."):
-        try:
-            res = query_rag(q, k=K_DEFAULT, max_tokens=MAX_TOKENS_DEFAULT)
-        except Exception as e:
-            st.error("Generation failed: see details below")
-            st.exception(e)
-        else:
-            answer = res.get("answer", "")
-            sources = res.get("sources", [])
-            with st.chat_message("assistant"):
-                st.write(answer)
-                if sources:
-                    with st.expander("Sources"):
-                        for s in sources:
-                            st.markdown(f"- {s.get('id')} - {s.get('meta', {}).get('place')}")
-            st.session_state.chat_history.append(
-                {
-                    "question": q,
-                    "answer": answer,
-                    "sources": sources,
-                    "time": datetime.now().strftime("%H:%M:%S"),
-                }
-            )
+        res = query_rag(q, k=K_DEFAULT, max_tokens=MAX_TOKENS_DEFAULT)
+    answer = res.get("answer", "")
+    sources = res.get("sources", [])
+    error_message = res["error"] if "error" in res else None
+    if error_message:
+        st.error(error_message)
+    with st.chat_message("assistant"):
+        st.write(answer)
+        if sources:
+            with st.expander("Sources"):
+                for s in sources:
+                    st.markdown(f"- {s.get('id')} - {s.get('meta', {}).get('place')}")
+    st.session_state.chat_history.append(
+        {
+            "question": q,
+            "answer": answer,
+            "sources": sources,
+            "time": datetime.now().strftime("%H:%M:%S"),
+        }
+    )
 
 st.markdown(
     f"""
