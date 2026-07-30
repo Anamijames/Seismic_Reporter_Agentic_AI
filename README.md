@@ -173,13 +173,6 @@ If you get an error mentioning `//./pipe/dockerDesktopLinuxEngine`, Docker Deskt
 - Cause: query before ingest/index step.
 - Fix: run ingestion + index commands in Quick start step 5.
 
-## Resume/portfolio talking points
-
-- Built a domain-specific RAG assistant over raw public data.
-- Integrated vector retrieval with source-grounded responses.
-- Used Groq API for low-latency generation.
-- Designed a responsive Streamlit UI with persistent chat history.
-- Added test coverage and containerized run support.
 
 
 
