@@ -203,6 +203,14 @@ def generate_with_groq(model: str, prompt: str, max_tokens: int = 128) -> str:
     except requests.RequestException as exc:
         raise RuntimeError(f"Groq request failed: {exc}") from exc
 
+    if resp.status_code == 401:
+        raise RuntimeError(
+            "GROQ_API_KEY is invalid or revoked. Update the Streamlit secrets or environment variable and redeploy."
+        )
+    if resp.status_code == 403:
+        raise RuntimeError(
+            "Groq rejected the request with 403. Check the API key permissions and the selected model."
+        )
     if resp.status_code >= 400:
         raise RuntimeError(f"Groq API error {resp.status_code}: {resp.text[:500]}")
 

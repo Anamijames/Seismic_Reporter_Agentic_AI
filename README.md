@@ -101,6 +101,23 @@ python -c "from src.ingest import run_ingest; run_ingest(1)"
 python -c "from src import ingest as ig, rag as r; geo=ig.fetch_usgs_past_days(1); docs=ig.to_documents(geo); r.build_index(docs)"
 ```
 
+This step fetches the most recent USGS earthquake feed, converts it into documents, and builds the FAISS index. The main ingestion metrics you should expect are:
+
+- `doc_count`: number of earthquake documents produced from the feed
+- `index_build_seconds`: time spent embedding and writing the FAISS index
+- `query_seconds`: time spent retrieving context and generating an answer
+
+### Required setup
+
+Before running the app, make sure these are in place:
+
+- Python 3.10+ with the project virtual environment activated
+- Dependencies installed from `requirements.txt`
+- `GROQ_API_KEY` set in `.env` or Streamlit secrets
+- `GROQ_MODEL` set to a valid Groq chat model name
+- Optional: `ENABLE_MLFLOW=false` unless you have a running MLflow server
+- Run the ingest and index commands at least once so the FAISS store exists
+
 ### 6. Run the app
 
 ```bash
