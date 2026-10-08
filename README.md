@@ -21,7 +21,7 @@ It is designed as a practical AI project and demonstrates end-to-end skills in:
 
 ## Tech stack
 
-- Python 3.10+
+- Python 3.11 (deployment pinned via `runtime.txt`)
 - Streamlit
 - sentence-transformers
 - FAISS (faiss-cpu)
@@ -111,7 +111,7 @@ This step fetches the most recent USGS earthquake feed, converts it into documen
 
 Before running the app, make sure these are in place:
 
-- Python 3.10+ with the project virtual environment activated
+- Python 3.11+ with the project virtual environment activated
 - Dependencies installed from `requirements.txt`
 - `GROQ_API_KEY` set in `.env` or Streamlit secrets
 - `GROQ_MODEL` set to a valid Groq chat model name
@@ -125,6 +125,19 @@ streamlit run app/streamlit_app.py
 ```
 
 Open http://localhost:8501
+
+### Streamlit Cloud deployment note
+
+This repository includes `.streamlit/config.toml` with:
+
+```toml
+[server]
+fileWatcherType = "none"
+```
+
+This disables Streamlit's local source watcher in deployment, which avoids startup crashes where the watcher introspects lazy `transformers` modules and raises `ModuleNotFoundError: torchvision` for image-model submodules that this app does not use.
+
+After pulling this change, **redeploy or restart** the Streamlit app so the new config is applied.
 
 ## Run tests
 
@@ -154,6 +167,7 @@ If you get an error mentioning `//./pipe/dockerDesktopLinuxEngine`, Docker Deskt
 | `FAISS_INDEX_PATH` | No | `./data/faiss_index` | Local FAISS index path |
 | `RAG_RETRIEVAL_K` | No | `3` | Number of retrieved chunks |
 | `RAG_MAX_TOKENS` | No | `180` | Max answer tokens |
+| `INDEX_REFRESH_DAYS` | No | `1` | Number of recent USGS days to ingest/index |
 | `ENABLE_MLFLOW` | No | `false` | Enables MLflow logging when true |
 | `MLFLOW_TRACKING_URI` | No | `http://localhost:5000` | Tracking server URI |
 | `AUTHOR_NAME` | No | `Anami James A` | Footer author name in UI |
@@ -169,12 +183,17 @@ If you get an error mentioning `//./pipe/dockerDesktopLinuxEngine`, Docker Deskt
 - Cause: wrong key value or placeholder key still in `.env`.
 - Fix: update `GROQ_API_KEY` and restart Streamlit.
 
-### 3. FAISS index not found
+### 3. Streamlit startup error mentioning `torchvision` from `local_sources_watcher`
+- Cause: Streamlit file watcher introspection of optional `transformers` image modules, not a Groq authentication problem.
+- Fix: keep `.streamlit/config.toml` committed with `fileWatcherType = "none"` and restart/redeploy the app.
+
+### 4. FAISS index not found
 - Cause: query before ingest/index step.
 - Fix: run ingestion + index commands in Quick start step 5.
 
-
-
+### 5. Year-specific question returns no matching events
+- Cause: indexed data window does not contain that year.
+- Fix: increase `INDEX_REFRESH_DAYS`, rebuild the index, and ask again.
 
 
 

@@ -2,14 +2,15 @@
 import os
 import json
 import time
+import re
 import threading
 from typing import List
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 load_dotenv()
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
 import requests
 
 # Paths and config
@@ -24,7 +25,19 @@ _index_scheduler_lock = threading.Lock()
 
 # Embedding model (local)
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "all-MiniLM-L6-v2")
-_embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+_embed_model = None
+_embed_model_lock = threading.Lock()
+
+
+def _get_embed_model():
+    global _embed_model
+    if _embed_model is not None:
+        return _embed_model
+    with _embed_model_lock:
+        if _embed_model is None:
+            from sentence_transformers import SentenceTransformer
+            _embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+    return _embed_model
 
 # MLflow setup
 MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI")
@@ -53,7 +66,7 @@ def _get_mlflow():
 
 def embed_texts(texts: List[str]) -> List[List[float]]:
     """Compute embeddings locally using sentence-transformers."""
-    arr = _embed_model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
+    arr = _get_embed_model().encode(texts, convert_to_numpy=True, show_progress_bar=False)
     return [a.tolist() for a in arr]
 
 
@@ -221,18 +234,74 @@ def generate_with_groq(model: str, prompt: str, max_tokens: int = 128) -> str:
     message = choices[0].get("message", {})
     return (message.get("content") or "").strip()
 
+
+def extract_year_from_question(question: str) -> int | None:
+    years = re.findall(r"\b(19\d{2}|20\d{2}|21\d{2})\b", question or "")
+    if not years:
+        return None
+    return int(years[-1])
+
+
+def event_year_from_hit(hit: dict) -> int | None:
+    meta = hit.get("meta", {}) if isinstance(hit, dict) else {}
+    if not isinstance(meta, dict):
+        return None
+
+    year = meta.get("event_year")
+    if isinstance(year, int):
+        return year
+
+    time_utc = meta.get("event_time_utc")
+    if isinstance(time_utc, str):
+        try:
+            if time_utc.endswith("Z"):
+                time_utc = time_utc.replace("Z", "+00:00")
+            return datetime.fromisoformat(time_utc).year
+        except ValueError:
+            pass
+
+    time_epoch_ms = meta.get("time")
+    if isinstance(time_epoch_ms, (int, float)):
+        try:
+            return datetime.fromtimestamp(time_epoch_ms / 1000.0, tz=timezone.utc).year
+        except (OverflowError, OSError, ValueError):
+            return None
+    return None
+
+
+def filter_hits_by_year(hits: List[dict], year: int) -> List[dict]:
+    return [h for h in hits if event_year_from_hit(h) == year]
+
 def query_rag(question: str, k=3, ollama_model: str = None, max_tokens: int = 128):
     start = time.time()
     hits = []
     context = ""
-    prompt_prefix = "You are an assistant that answers questions using the provided context. "
+    prompt_prefix = (
+        "You are an assistant that answers questions only using the provided context. "
+        "Do not invent years or events. If the context does not support a claim, clearly say so."
+    )
     error_message = None
 
     try:
         idx, meta = load_index()
         q_emb = np.array(embed_texts([question])).astype("float32")
-        _, I = idx.search(q_emb, k)
-        hits = select_hits(meta, I[0])
+        requested_year = extract_year_from_question(question)
+        search_k = k if requested_year is None else min(max(k * 10, 20), len(meta))
+        _, I = idx.search(q_emb, search_k)
+        candidate_hits = select_hits(meta, I[0])
+        if requested_year is not None:
+            year_hits = filter_hits_by_year(candidate_hits, requested_year)
+            hits = year_hits[:k]
+            if not hits:
+                return {
+                    "answer": (
+                        f"No earthquakes from {requested_year} were found in the current indexed USGS data window. "
+                        "Try increasing the ingest window or rebuilding the index with broader date coverage."
+                    ),
+                    "sources": [],
+                }
+        else:
+            hits = candidate_hits[:k]
         context = "\n---\n".join([h["text"] for h in hits])
         prompt = prompt_prefix + f"Context:\n{context}\nQuestion: {question}\nAnswer:"
     except FileNotFoundError:
