@@ -167,6 +167,7 @@ If you get an error mentioning `//./pipe/dockerDesktopLinuxEngine`, Docker Deskt
 | `FAISS_INDEX_PATH` | No | `./data/faiss_index` | Local FAISS index path |
 | `RAG_RETRIEVAL_K` | No | `3` | Number of retrieved chunks |
 | `RAG_MAX_TOKENS` | No | `180` | Max answer tokens |
+| `INDEX_REFRESH_DAYS` | No | `1` | Number of recent USGS days to ingest/index |
 | `ENABLE_MLFLOW` | No | `false` | Enables MLflow logging when true |
 | `MLFLOW_TRACKING_URI` | No | `http://localhost:5000` | Tracking server URI |
 | `AUTHOR_NAME` | No | `Anami James A` | Footer author name in UI |
@@ -190,6 +191,9 @@ If you get an error mentioning `//./pipe/dockerDesktopLinuxEngine`, Docker Deskt
 - Cause: query before ingest/index step.
 - Fix: run ingestion + index commands in Quick start step 5.
 
+### 5. Year-specific question returns no matching events
+- Cause: indexed data window does not contain that year.
+- Fix: increase `INDEX_REFRESH_DAYS`, rebuild the index, and ask again.
 
 
 

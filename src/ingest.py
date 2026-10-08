@@ -29,17 +29,36 @@ def to_documents(geojson):
     for feat in geojson.get("features", []):
         props = feat.get("properties", {})
         geometry = feat.get("geometry", {})
+        event_time_ms = props.get("time")
+        event_time_utc = None
+        event_year = None
+        if isinstance(event_time_ms, (int, float)):
+            try:
+                dt = datetime.fromtimestamp(event_time_ms / 1000.0, tz=timezone.utc)
+                event_time_utc = dt.isoformat().replace("+00:00", "Z")
+                event_year = dt.year
+            except (OverflowError, OSError, ValueError):
+                event_time_utc = None
+                event_year = None
+
+        meta = dict(props)
+        if event_time_utc:
+            meta["event_time_utc"] = event_time_utc
+        if event_year is not None:
+            meta["event_year"] = event_year
         text = (
             f"id: {feat.get('id')}\n"
             f"place: {props.get('place')}\n"
             f"mag: {props.get('mag')}\n"
-            f"time: {props.get('time')}\n"
+            f"time_epoch_ms: {props.get('time')}\n"
+            f"time_utc: {event_time_utc}\n"
+            f"event_year: {event_year}\n"
             f"url: {props.get('url')}\n"
             f"felt: {props.get('felt')}\n"
             f"tsunami: {props.get('tsunami')}\n"
             f"coords: {geometry.get('coordinates')}\n"
         )
-        docs.append({"id": feat.get("id"), "text": text, "meta": props})
+        docs.append({"id": feat.get("id"), "text": text, "meta": meta})
     return docs
 
 def save_jsonl(docs, filename="usgs_docs.jsonl"):
