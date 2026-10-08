@@ -21,7 +21,7 @@ It is designed as a practical AI project and demonstrates end-to-end skills in:
 
 ## Tech stack
 
-- Python 3.10 (deployment pinned via `runtime.txt`)
+- Python 3.11 (deployment pinned via `runtime.txt`)
 - Streamlit
 - sentence-transformers
 - FAISS (faiss-cpu)
@@ -111,7 +111,7 @@ This step fetches the most recent USGS earthquake feed, converts it into documen
 
 Before running the app, make sure these are in place:
 
-- Python 3.10+ with the project virtual environment activated
+- Python 3.11+ with the project virtual environment activated
 - Dependencies installed from `requirements.txt`
 - `GROQ_API_KEY` set in `.env` or Streamlit secrets
 - `GROQ_MODEL` set to a valid Groq chat model name
@@ -189,7 +189,6 @@ If you get an error mentioning `//./pipe/dockerDesktopLinuxEngine`, Docker Deskt
 ### 4. FAISS index not found
 - Cause: query before ingest/index step.
 - Fix: run ingestion + index commands in Quick start step 5.
-
 
 
 
