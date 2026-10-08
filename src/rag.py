@@ -9,7 +9,6 @@ load_dotenv()
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
 import requests
 
 # Paths and config
@@ -24,7 +23,19 @@ _index_scheduler_lock = threading.Lock()
 
 # Embedding model (local)
 EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "all-MiniLM-L6-v2")
-_embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+_embed_model = None
+_embed_model_lock = threading.Lock()
+
+
+def _get_embed_model():
+    global _embed_model
+    if _embed_model is not None:
+        return _embed_model
+    with _embed_model_lock:
+        if _embed_model is None:
+            from sentence_transformers import SentenceTransformer
+            _embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+    return _embed_model
 
 # MLflow setup
 MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI")
@@ -53,7 +64,7 @@ def _get_mlflow():
 
 def embed_texts(texts: List[str]) -> List[List[float]]:
     """Compute embeddings locally using sentence-transformers."""
-    arr = _embed_model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
+    arr = _get_embed_model().encode(texts, convert_to_numpy=True, show_progress_bar=False)
     return [a.tolist() for a in arr]
 
 

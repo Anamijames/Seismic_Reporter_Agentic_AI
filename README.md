@@ -21,7 +21,7 @@ It is designed as a practical AI project and demonstrates end-to-end skills in:
 
 ## Tech stack
 
-- Python 3.10+
+- Python 3.10 (deployment pinned via `runtime.txt`)
 - Streamlit
 - sentence-transformers
 - FAISS (faiss-cpu)
@@ -126,6 +126,19 @@ streamlit run app/streamlit_app.py
 
 Open http://localhost:8501
 
+### Streamlit Cloud deployment note
+
+This repository includes `.streamlit/config.toml` with:
+
+```toml
+[server]
+fileWatcherType = "none"
+```
+
+This disables Streamlit's local source watcher in deployment, which avoids startup crashes where the watcher introspects lazy `transformers` modules and raises `ModuleNotFoundError: torchvision` for image-model submodules that this app does not use.
+
+After pulling this change, **redeploy or restart** the Streamlit app so the new config is applied.
+
 ## Run tests
 
 ```bash
@@ -169,10 +182,13 @@ If you get an error mentioning `//./pipe/dockerDesktopLinuxEngine`, Docker Deskt
 - Cause: wrong key value or placeholder key still in `.env`.
 - Fix: update `GROQ_API_KEY` and restart Streamlit.
 
-### 3. FAISS index not found
+### 3. Streamlit startup error mentioning `torchvision` from `local_sources_watcher`
+- Cause: Streamlit file watcher introspection of optional `transformers` image modules, not a Groq authentication problem.
+- Fix: keep `.streamlit/config.toml` committed with `fileWatcherType = "none"` and restart/redeploy the app.
+
+### 4. FAISS index not found
 - Cause: query before ingest/index step.
 - Fix: run ingestion + index commands in Quick start step 5.
-
 
 
 

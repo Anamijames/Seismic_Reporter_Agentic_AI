@@ -34,7 +34,8 @@ mlflow.db
 *.sqlite3
 
 # Streamlit
-.streamlit/
+.streamlit/*
+!.streamlit/config.toml
 .streamlit_config/
 
 # Jupyter
